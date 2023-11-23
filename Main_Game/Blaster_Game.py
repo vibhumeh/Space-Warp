@@ -26,7 +26,7 @@ def rot_center2(image, angle, x, y):
 
 path="images/"
 image1=pygame.image.load(path+'space-invaders.png')
-image2=pygame.image.load(path+'space-invaders_20.png')
+image2=pygame.image.load(path+'space-invaders_2.png')
 speed=1
 class Player(pygame.sprite.Sprite): 
     def __init__(self, x, y):
