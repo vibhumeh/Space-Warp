@@ -1,10 +1,18 @@
 import pygame
-#import time
+import sys
+import time
 from pygame.locals import *
 pygame.init()
 gamers = pygame.sprite.Group()
 bullets = pygame.sprite.Group()
 screen = pygame.display.set_mode((800, 600))
+
+
+
+
+
+
+
 def rot_center(image, angle):
 
     #rotate an image while keeping its center and size
@@ -14,23 +22,75 @@ def rot_center(image, angle):
     rot_rect.center = rot_image.get_rect().center
     #rot_image = rot_image.subsurface(rot_rect).copy()
     return rot_image
-def rot_center2(image, angle, x, y):
-    #orig_rect = (image.get_rect())
-    rot_image = pygame.transform.rotate(image, angle)
-    #rot_rect = orig_rect.copy()
-    rot_rect = rot_image.get_rect(center=(x-image.get_width()/2,y-image.get_height()))
 
-    #rot_rect.center = rot_image.get_rect().center
-    #rot_image = rot_image.subsurface(rot_rect).copy()
-    return rot_image,rot_rect
 
 path="images/"
 image1=pygame.image.load(path+'space-invaders.png')
 image2=pygame.image.load(path+'space-invaders_2.png')
+
+image_b=pygame.image.load(path+"bullet.png")
+#image_mine=pygame.image.load(path+"explosion_p/filer/tile000.png")
+
+myfont = pygame.font.SysFont(None,50)
+
+
+
+
+
+waiting=True
+maxhp=100
+dmg=20
 speed=1
+#Start game func
+
+
+def start_screen():
+    screen.fill((0,100,100))
+    text = myfont.render("Press SPACE to Start", True, (0,0,0))
+    text_rect = text.get_rect(center=(800 // 2, 600 // 2))
+    screen.blit(text, text_rect)
+    pygame.display.flip()
+
+    global waiting
+    while waiting:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                waiting = False
+def End_gamescreen():
+    global winner
+    screen.fill((150,150,100))
+    text = myfont.render(f"Winner is {winner}", True, (0,0,0))
+    text_rect = text.get_rect(center=(800 // 2, 600 // 2))
+    screen.blit(text, text_rect)
+    pygame.display.flip()
+
+    global waiting
+
+
+class health_bar():
+    def _init_(self,playername):
+        self.owner=playername
+        
+    def draw(self):
+        self.ratio=self.owner.hp/maxhp
+        if self.ratio<0:
+            self.ratio=0
+        x,y=self.owner.pos
+        y+=30
+        x-=45
+        pygame.draw.rect(screen,"red",(x,y,100,10))
+        pygame.draw.rect(screen,"green",(x,y,100*self.ratio,10))
+
 class Player(pygame.sprite.Sprite): 
     def __init__(self, x, y):
         super().__init__() 
+        self.reloading=False
+        self.timer=0
+        self.bcount=5
+        self.hp=maxhp
         self.delangle=False
         self.angle = 0
         self.pos = pygame.math.Vector2(x, y)
@@ -41,6 +101,7 @@ class Player(pygame.sprite.Sprite):
         except:
             self.image = pygame.Surface((20, 20))
             self.image.fill((255, 0, 0))
+        self.image=rot_center(image1,self.angle)
         self.rect = self.image.get_rect(midbottom = (round(self.pos.x ), round(self.pos.y)))
 
     def update(self):
@@ -82,12 +143,16 @@ class Player(pygame.sprite.Sprite):
             self.rect.top=0
         if self.rect.bottom>600:
             self.rect.bottom=600
-#class computer(pygame.sprite.Sprite):
 class Player2(pygame.sprite.Sprite): 
     def __init__(self, x, y):
-        super().__init__() 
+        super().__init__()
+        self.reloading=False
+        self.timer=0
+        self.bcount=5 
+        self.hp=maxhp
         self.delangle=False
-        self.angle = 0
+        self.angle =180
+        
         self.pos = pygame.math.Vector2(x, y)
         self.move = pygame.math.Vector2()
         try:
@@ -96,6 +161,7 @@ class Player2(pygame.sprite.Sprite):
         except:
             self.image = pygame.Surface((20, 20))
             self.image.fill((255, 0, 0))
+        self.image=rot_center(image2,self.angle)
         self.rect = self.image.get_rect(midbottom = (round(self.pos.x), round(self.pos.y)))
 
     def update(self):
@@ -136,7 +202,7 @@ class Player2(pygame.sprite.Sprite):
             self.rect.top=0
         if self.rect.bottom>600:
             self.rect.bottom=600
-image_b=pygame.image.load(path+"bullet.png")
+### SPAM REMOVES RELOAD TIME OF BULLET
 class Bullet(pygame.sprite.Sprite):
     def __init__(self,player) -> None:
         super().__init__()
@@ -162,41 +228,112 @@ class Bullet(pygame.sprite.Sprite):
         self.move.rotate_ip(-self.angle)
         self.pos= self.pos-self.move*time_passed
         self.rect =self.image.get_rect(midbottom = (round(self.pos.x), round(self.pos.y)))    
-player = Player(400, 600)
-player2=Player2(300,200)
-allSprites =[pygame.sprite.Group(player),pygame.sprite.Group(player2)]
+class Landmines(pygame.sprite.Sprite):
+    def __init__(self,player):
+        super().__init__()
+        self.pos = player.pos
+        #self.image = image_mine
+        self.owner=player
+        self.isready=False
+        self.rect = pygame.Rect(10, 10, 200, 200)
+
+class P_explosion(pygame.sprite.Sprite):
+    def __init__(self,player):
+        super().__init__()
+        self.images=[]
+        self.pos=player.pos
+        for i in range(6,10):
+            img=pygame.image.load(path+f"explosion_p/filer/tile00{i}.png")
+            self.images.append(img)
+        self.counter=0
+        self.index=0
+        self.image=self.images[self.index]
+        self.rect=self.image.get_rect(center = (round(self.pos.x ), round(self.pos.y)))
+    def update(self):
+        explosion_speed=8
+        self.counter+=1
+        if self.counter>=explosion_speed and self.index<len(self.images):
+            self.counter=0
+            
+            self.image=self.images[self.index]
+            self.index+=1
+        if self.index>=len(self.images):
+            self.kill()
+
+
+
+
+    
+
+
+
+gg=False
 bullet_bool1=False
 bullet_bool2=False
 bullet_L=[]
 bullet_L1=[]
 collisions=[]
+
+
+player = Player(400, 500)
+player2=Player2(400,0)
+
+Explosion=pygame.sprite.Group()
+allSprites =[pygame.sprite.Group(player),pygame.sprite.Group(player2)]
 clock = pygame.time.Clock()
-appender2=False
+
+HP1=health_bar()
+HP1._init_(player)
+HP2=health_bar()
+HP2._init_(player2)
 while True:
+    
+    if waiting:
+        start_screen()
     time_passed = clock.tick(120)/10
     for event in pygame.event.get():
         if event.type == QUIT: 
             pygame.quit()
             exit()
         if event.type == KEYDOWN:
+            if(event.key==K_1):
+                expl=P_explosion(player)
+                Explosion.add(expl)
             if(event.key==K_SPACE):
-                appender1=True
-                bullet_bool1=True
+              
+                if not player.bcount==0:  
+                    player.bcount-=1
+                    appender1=True
+                    bullet_bool1=True
+                elif not player.reloading:
+                    player.reloading=True
+                    player.timer=time.time()
+                elif time.time()-player.timer>=5:
+                    player.bcount=5
             if(event.key==K_q):
-                
-                appender2=True
-                bullet_bool2=True
+                if not player2.bcount==0:
+                    player2.bcount-=1
+                    appender2=True
+                    bullet_bool2=True
+                elif not player2.reloading:
+                    player2.reloading=True
+                    player2.timer=time.time()
+                elif time.time()-player2.timer>=5:
+                    player2.bcount=5
                 
     allSprites[0].update()
     allSprites[1].update()
-    screen.fill((220, 220, 0))
+    screen.fill((0,0,90))
+    HP1.draw()
+    HP2.draw()
     #makes turning smooth
     player2.rect = player2.image.get_rect(center=((player2.pos.x), (player2.pos.y)))
     player.rect = player.image.get_rect(center=((player.pos.x), (player.pos.y)))
     allSprites[0].draw(screen)
     allSprites[1].draw(screen)
-    winner=""
-    #replacing seperate bullets with looped bullets
+    Explosion.update()
+    Explosion.draw(screen)
+
     for k,i in zip(bullet_L,bullet_L1):
         k.update(i.owner)
         k.draw(screen)
@@ -225,27 +362,34 @@ while True:
             bullet2.bullet_ready(player2)
             bullet_L.append(bul2)
             bullet_L1.append(bullet2)
-       
-    for i in bullet_L1:
+
+    for p,i in enumerate(bullet_L1):
         if(i.owner!=player):
 
-             collisions=pygame.sprite.spritecollide(i,allSprites[0], True)
+             collisions=pygame.sprite.spritecollide(i,allSprites[0], False)
+             if len(collisions)>0:
+                bullet_L1.remove(i)
+                bullet_L.pop(p)
 
         if(i.owner!=player2):
-
-            collisions=(pygame.sprite.spritecollide(i,allSprites[1], True))
+            collisions=(pygame.sprite.spritecollide(i,allSprites[1], False))
+            if len(collisions)>0:
+                bullet_L1.remove(i)
+                bullet_L.pop(p)
 
         for k in collisions:
             if(k==player2):
-                winner="player1"
-                print(f"The winner is {winner} ")
-                
-                quit()
+                player2.hp-=dmg
             if(k==player):
-                winner="player2"
-                print(f"The winner is {winner} ")
-                quit()     
-
+                player.hp-=dmg
+        
+    if player2.hp<=0:
+        winner="player1"
+        gg=True
+    if player.hp<=0:
+        winner="player2"
+        gg=True
+    if gg:
+        End_gamescreen()
+    
     pygame.display.flip()
-
-
