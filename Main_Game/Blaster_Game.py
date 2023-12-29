@@ -1,14 +1,19 @@
 import pygame
 import sys
 import time
+import simpleaudio as sa
 from pygame.locals import *
 pygame.init()
 gamers = pygame.sprite.Group()
 bullets = pygame.sprite.Group()
 screen = pygame.display.set_mode((800, 600))
 
+pygame.mixer.music.load("sound_effects/game_music.wav")
+pygame.mixer.music.set_volume(0.3)
+pygame.mixer.music.play(-1)
 
-
+boom = sa.WaveObject.from_wave_file('sound_effects/muffled_explosion.wav')
+gunshot=sa.WaveObject.from_wave_file('sound_effects/gunshot.wav')
 
 
 
@@ -59,6 +64,7 @@ def start_screen():
                 sys.exit()
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
                 waiting = False
+                pygame.mixer.music.set_volume(1)
 def End_gamescreen():
     global winner
     screen.fill((150,150,100))
@@ -202,7 +208,7 @@ class Player2(pygame.sprite.Sprite):
             self.rect.top=0
         if self.rect.bottom>600:
             self.rect.bottom=600
-### SPAM REMOVES RELOAD TIME OF BULLET
+### SPAM REMOVES RELOAD TIME OF BULLET ->resolved
 class Bullet(pygame.sprite.Sprite):
     def __init__(self,player) -> None:
         super().__init__()
@@ -277,60 +283,70 @@ collisions=[]
 
 player = Player(400, 500)
 player2=Player2(400,0)
-
+gamers.add(player)
+gamers.add(player2)
 Explosion=pygame.sprite.Group()
-allSprites =[pygame.sprite.Group(player),pygame.sprite.Group(player2)]
+
+#allSprites =[pygame.sprite.Group(player),pygame.sprite.Group(player2)]
 clock = pygame.time.Clock()
 
 HP1=health_bar()
 HP1._init_(player)
 HP2=health_bar()
 HP2._init_(player2)
+gamerl=gamers.sprites()
 while True:
     
     if waiting:
         start_screen()
     time_passed = clock.tick(120)/10
+    if player.reloading and k==0:
+        k=1
+        t=time.time
+    
     for event in pygame.event.get():
         if event.type == QUIT: 
             pygame.quit()
             exit()
         if event.type == KEYDOWN:
-            if(event.key==K_1):
-                expl=P_explosion(player)
-                Explosion.add(expl)
-            if(event.key==K_SPACE):
-              
+                
+            if(event.key==K_SPACE and len(gamerl)>1):
+                
                 if not player.bcount==0:  
+                    gunshot.play()
                     player.bcount-=1
                     appender1=True
                     bullet_bool1=True
-                elif not player.reloading:
+                elif not player.reloading and player.bcount==0:
                     player.reloading=True
                     player.timer=time.time()
                 elif time.time()-player.timer>=5:
                     player.bcount=5
-            if(event.key==K_q):
+                    player.reloading=False
+            if(event.key==K_q and len(gamerl)>1):
                 if not player2.bcount==0:
+                    gunshot.play()
                     player2.bcount-=1
                     appender2=True
                     bullet_bool2=True
+                
                 elif not player2.reloading:
                     player2.reloading=True
                     player2.timer=time.time()
                 elif time.time()-player2.timer>=5:
                     player2.bcount=5
+                    player2.reloading=False
+    
                 
-    allSprites[0].update()
-    allSprites[1].update()
+    gamers.update()
     screen.fill((0,0,90))
+   
     HP1.draw()
     HP2.draw()
     #makes turning smooth
     player2.rect = player2.image.get_rect(center=((player2.pos.x), (player2.pos.y)))
     player.rect = player.image.get_rect(center=((player.pos.x), (player.pos.y)))
-    allSprites[0].draw(screen)
-    allSprites[1].draw(screen)
+    gamers.draw(screen)
     Explosion.update()
     Explosion.draw(screen)
 
@@ -366,13 +382,13 @@ while True:
     for p,i in enumerate(bullet_L1):
         if(i.owner!=player):
 
-             collisions=pygame.sprite.spritecollide(i,allSprites[0], False)
+             collisions=pygame.sprite.spritecollide(i,[gamerl[0]],False)
              if len(collisions)>0:
                 bullet_L1.remove(i)
                 bullet_L.pop(p)
 
         if(i.owner!=player2):
-            collisions=(pygame.sprite.spritecollide(i,allSprites[1], False))
+            collisions=pygame.sprite.spritecollide(i,[gamerl[1]],False )
             if len(collisions)>0:
                 bullet_L1.remove(i)
                 bullet_L.pop(p)
@@ -383,13 +399,21 @@ while True:
             if(k==player):
                 player.hp-=dmg
         
-    if player2.hp<=0:
+    if player2.hp<=0 and not gg:
         winner="player1"
+        expl=P_explosion(player2)
+        Explosion.add(expl)
+        gamers.remove(player2)
+        boom.play()
         gg=True
-    if player.hp<=0:
+    if player.hp<=0 and not gg:
         winner="player2"
+        expl=P_explosion(player)
+        Explosion.add(expl)
+        gamers.remove(player)
+        boom.play()
         gg=True
-    if gg:
+    if gg and len(Explosion.sprites())==0:
         End_gamescreen()
     
     pygame.display.flip()
