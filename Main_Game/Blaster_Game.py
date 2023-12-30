@@ -1,7 +1,7 @@
 import pygame
 import sys
 import time
-import simpleaudio as sa
+#import simpleaudio as sa
 from pygame.locals import *
 pygame.init()
 gamers = pygame.sprite.Group()
@@ -12,8 +12,8 @@ pygame.mixer.music.load("sound_effects/game_music.wav")
 pygame.mixer.music.set_volume(0.3)
 pygame.mixer.music.play(-1)
 
-boom = sa.WaveObject.from_wave_file('sound_effects/muffled_explosion.wav')
-gunshot=sa.WaveObject.from_wave_file('sound_effects/gunshot.wav')
+boom = pygame.mixer.Sound('sound_effects/DeathFlash.wav')
+gunshot=pygame.mixer.Sound('sound_effects/gunshot.wav')
 
 
 
@@ -64,7 +64,7 @@ def start_screen():
                 sys.exit()
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
                 waiting = False
-                pygame.mixer.music.set_volume(1)
+                pygame.mixer.music.set_volume(0.6)
 def End_gamescreen():
     global winner
     screen.fill((150,150,100))
@@ -248,7 +248,7 @@ class P_explosion(pygame.sprite.Sprite):
         super().__init__()
         self.images=[]
         self.pos=player.pos
-        for i in range(6,10):
+        for i in range(5,10):
             img=pygame.image.load(path+f"explosion_p/filer/tile00{i}.png")
             self.images.append(img)
         self.counter=0
@@ -256,7 +256,7 @@ class P_explosion(pygame.sprite.Sprite):
         self.image=self.images[self.index]
         self.rect=self.image.get_rect(center = (round(self.pos.x ), round(self.pos.y)))
     def update(self):
-        explosion_speed=8
+        explosion_speed=6
         self.counter+=1
         if self.counter>=explosion_speed and self.index<len(self.images):
             self.counter=0
@@ -272,7 +272,7 @@ class P_explosion(pygame.sprite.Sprite):
     
 
 
-
+check=0
 gg=False
 bullet_bool1=False
 bullet_bool2=False
@@ -347,9 +347,8 @@ while True:
     player2.rect = player2.image.get_rect(center=((player2.pos.x), (player2.pos.y)))
     player.rect = player.image.get_rect(center=((player.pos.x), (player.pos.y)))
     gamers.draw(screen)
-    Explosion.update()
     Explosion.draw(screen)
-
+    Explosion.update()
     for k,i in zip(bullet_L,bullet_L1):
         k.update(i.owner)
         k.draw(screen)
@@ -399,11 +398,18 @@ while True:
             if(k==player):
                 player.hp-=dmg
         
+    
+    if gg and len(Explosion.sprites())==0 and time.time()-t>=5:
+         if i:
+             time.sleep(2)
+             End_gamescreen()
+         check+=1
     if player2.hp<=0 and not gg:
         winner="player1"
         expl=P_explosion(player2)
         Explosion.add(expl)
         gamers.remove(player2)
+        t=time.time()
         boom.play()
         gg=True
     if player.hp<=0 and not gg:
@@ -411,9 +417,8 @@ while True:
         expl=P_explosion(player)
         Explosion.add(expl)
         gamers.remove(player)
+        t=time.time()
         boom.play()
         gg=True
-    if gg and len(Explosion.sprites())==0:
-        End_gamescreen()
-    
+
     pygame.display.flip()
