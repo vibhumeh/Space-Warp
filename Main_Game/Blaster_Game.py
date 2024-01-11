@@ -6,11 +6,12 @@ from pygame.locals import *
 pygame.init()
 gamers = pygame.sprite.Group()
 bullets = pygame.sprite.Group()
+Explosion=pygame.sprite.Group()
 screen = pygame.display.set_mode((800, 600))
 
-pygame.mixer.music.load("sound_effects/game_music.wav")
+#pygame.mixer.music.load("sound_effects/game_music.wav")#play music later
 pygame.mixer.music.set_volume(0.3)
-pygame.mixer.music.play(-1)
+#pygame.mixer.music.play(-1)
 
 boom = pygame.mixer.Sound('sound_effects/DeathFlash.wav')
 gunshot=pygame.mixer.Sound('sound_effects/gunshot.wav')
@@ -82,13 +83,16 @@ class health_bar():
         
     def draw(self):
         self.ratio=self.owner.hp/maxhp
-        if self.ratio<0:
-            self.ratio=0
-        x,y=self.owner.pos
-        y+=30
-        x-=45
-        pygame.draw.rect(screen,"red",(x,y,100,10))
-        pygame.draw.rect(screen,"green",(x,y,100*self.ratio,10))
+        if(not self.ratio==0):
+            
+            if self.ratio<0:
+                self.ratio=0
+            x,y=self.owner.pos
+            y+=30
+            x-=45
+            
+            pygame.draw.rect(screen,"red",(x,y,100,10))
+            pygame.draw.rect(screen,"green",(x,y,100*self.ratio,10))
 
 class Player(pygame.sprite.Sprite): 
     def __init__(self, x, y):
@@ -218,9 +222,10 @@ class Bullet(pygame.sprite.Sprite):
         self.owner=player
         self.isready=False
         self.rect = self.image.get_rect(midbottom = (round(self.pos.x), round(self.pos.y)))
-    def bullet_ready(self,player):
+    def bullet_ready(self):
         #global bullet_bool1
         #global bullet_bool2
+        player=self.owner
         mv=pygame.math.Vector2(0,40)
         self.angle=player.angle
         mv.rotate_ip(-self.angle)
@@ -228,12 +233,14 @@ class Bullet(pygame.sprite.Sprite):
         self.pos=self.pos-mv
         self.isready=True
     
-    def update(self,player):
-        
+    def update(self):
+        player=self.owner
         self.move=pygame.math.Vector2(0,speed+2)
         self.move.rotate_ip(-self.angle)
         self.pos= self.pos-self.move*time_passed
-        self.rect =self.image.get_rect(midbottom = (round(self.pos.x), round(self.pos.y)))    
+        self.rect =self.image.get_rect(midbottom = (round(self.pos.x), round(self.pos.y)))   
+        if(i.pos.y>600 or i.pos.y<0 or i.pos.x<0 or i.pos.x>800):
+            self.kill() 
 class Landmines(pygame.sprite.Sprite):
     def __init__(self,player):
         super().__init__()
@@ -276,8 +283,7 @@ check=0
 gg=False
 bullet_bool1=False
 bullet_bool2=False
-bullet_L=[]
-bullet_L1=[]
+
 collisions=[]
 
 
@@ -285,15 +291,15 @@ player = Player(400, 500)
 player2=Player2(400,0)
 gamers.add(player)
 gamers.add(player2)
-Explosion=pygame.sprite.Group()
 
-#allSprites =[pygame.sprite.Group(player),pygame.sprite.Group(player2)]
+
 clock = pygame.time.Clock()
 
 HP1=health_bar()
 HP1._init_(player)
 HP2=health_bar()
 HP2._init_(player2)
+
 gamerl=gamers.sprites()
 while True:
     
@@ -315,7 +321,6 @@ while True:
                 if not player.bcount==0:  
                     gunshot.play()
                     player.bcount-=1
-                    appender1=True
                     bullet_bool1=True
                 elif not player.reloading and player.bcount==0:
                     player.reloading=True
@@ -327,7 +332,6 @@ while True:
                 if not player2.bcount==0:
                     gunshot.play()
                     player2.bcount-=1
-                    appender2=True
                     bullet_bool2=True
                 
                 elif not player2.reloading:
@@ -341,56 +345,45 @@ while True:
     gamers.update()
     screen.fill((0,0,90))
    
-    HP1.draw()
-    HP2.draw()
+
     #makes turning smooth
     player2.rect = player2.image.get_rect(center=((player2.pos.x), (player2.pos.y)))
     player.rect = player.image.get_rect(center=((player.pos.x), (player.pos.y)))
+    HP1.draw()
+    HP2.draw()
     gamers.draw(screen)
     Explosion.draw(screen)
     Explosion.update()
-    for k,i in zip(bullet_L,bullet_L1):
-        k.update(i.owner)
-        k.draw(screen)
-        if(i.pos.y>600 or i.pos.y<0 or i.pos.x<0 or i.pos.x>800):
-            #bullet_bool1=False
-            bullet_L.remove(k)
-            bullet_L1.remove(i)
-        
+    bullets.update()
+    bullets.draw(screen)
+
+
             #bullet_bool1=False
 
     #bullets
-    if(bullet_bool1):
-        if(appender1):
-            bullet1=Bullet(player) 
-            bul1=(pygame.sprite.Group(bullet1))
-            appender1=False
-            bullet1.bullet_ready(player)
-            bullet_L.append(bul1)
-            bullet_L1.append(bullet1)
-    if(bullet_bool2):
-        if(appender2):
-            bullet2=Bullet(player2)
-            
-            bul2=(pygame.sprite.Group(bullet2))
-            appender2=False
-            bullet2.bullet_ready(player2)
-            bullet_L.append(bul2)
-            bullet_L1.append(bullet2)
+    if bullet_bool1:
+        bull1=Bullet(player)
+        bull1.bullet_ready()
+        bullets.add(bull1)
+        bullet_bool1=False
+    if bullet_bool2:
+        bull2=Bullet(player2)
+        bull2.bullet_ready()
+        bullets.add(bull2)
+        bullet_bool2=False
+    
 
-    for p,i in enumerate(bullet_L1):
+    for i in bullets.sprites():
         if(i.owner!=player):
 
              collisions=pygame.sprite.spritecollide(i,[gamerl[0]],False)
-             if len(collisions)>0:
-                bullet_L1.remove(i)
-                bullet_L.pop(p)
+             if len(collisions):
+                i.kill()
 
         if(i.owner!=player2):
             collisions=pygame.sprite.spritecollide(i,[gamerl[1]],False )
-            if len(collisions)>0:
-                bullet_L1.remove(i)
-                bullet_L.pop(p)
+            if len(collisions):
+                i.kill()
 
         for k in collisions:
             if(k==player2):
@@ -399,9 +392,9 @@ while True:
                 player.hp-=dmg
         
     
-    if gg and len(Explosion.sprites())==0 and time.time()-t>=5:
+    if gg and not Explosion and time.time()-t>=5:
          if i:
-             time.sleep(2)
+             time.sleep(1)
              End_gamescreen()
          check+=1
     if player2.hp<=0 and not gg:
