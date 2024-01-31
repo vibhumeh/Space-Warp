@@ -1,17 +1,26 @@
+from curses import KEY_A1
+from tkinter import E
 import pygame
 import sys
 import time
+import random as rand
+import logging
 #import simpleaudio as sa
 from pygame.locals import *
 pygame.init()
+Portals= pygame.sprite.Group()
 gamers = pygame.sprite.Group()
 bullets = pygame.sprite.Group()
 Explosion=pygame.sprite.Group()
-screen = pygame.display.set_mode((800, 600))
+Landmines=pygame.sprite.Group()
+ELandmines=pygame.sprite.Group()
+w=1400
+h=750
+screen = pygame.display.set_mode((w,h))
 
-#pygame.mixer.music.load("sound_effects/game_music.wav")#play music later
+pygame.mixer.music.load("sound_effects/game_music.wav")#play music later
 pygame.mixer.music.set_volume(0.3)
-#pygame.mixer.music.play(-1)
+pygame.mixer.music.play(-1)
 
 boom = pygame.mixer.Sound('sound_effects/DeathFlash.wav')
 gunshot=pygame.mixer.Sound('sound_effects/gunshot.wav')
@@ -31,29 +40,54 @@ def rot_center(image, angle):
 
 
 path="images/"
-image1=pygame.image.load(path+'space-invaders.png')
-image2=pygame.image.load(path+'space-invaders_2.png')
+image1=pygame.image.load(path+'space-invaders.png').convert_alpha()
+image2=pygame.image.load(path+'space-invaders_2.png').convert_alpha()
 
-image_b=pygame.image.load(path+"bullet.png")
-#image_mine=pygame.image.load(path+"explosion_p/filer/tile000.png")
+image_b=pygame.image.load(path+"bullet.png").convert_alpha()
+image_mine=[pygame.image.load(path+"Landmine0.png").convert_alpha(),pygame.image.load(path+"Landmine1.png").convert_alpha()]
 
+image_expM=pygame.image.load(path+"explosion_M/exp2.png").convert_alpha()
 myfont = pygame.font.SysFont(None,50)
 
+sheet_width, sheet_height = image_expM.get_size()
+num_sprites = 12  # Number of frames in the sprite sheet
+frame_width = sheet_width //4
+frame_height = sheet_height//4
 
+# Separating the frames
+frames = []
+k=0
+p=0
+for i in range(num_sprites+3):
+  
+    # Define a rectangle to cut out the right frame
+    frame_rect = pygame.Rect(p * frame_width, frame_height*k, frame_width,frame_height)
+    try:
+        frame = image_expM.subsurface(frame_rect)
+        frames.append(frame)
+
+    except:
+        p-=5
+        k+=1
+    p+=1
+    
+image_mine+=frames
 
 
 
 waiting=True
 maxhp=100
 dmg=20
-speed=1
+speed=1.5
+rot=1.5#in radians
+portalsize=[300,200]
 #Start game func
 
 
 def start_screen():
     screen.fill((0,100,100))
     text = myfont.render("Press SPACE to Start", True, (0,0,0))
-    text_rect = text.get_rect(center=(800 // 2, 600 // 2))
+    text_rect = text.get_rect(center=(w // 2, h // 2))
     screen.blit(text, text_rect)
     pygame.display.flip()
 
@@ -70,20 +104,28 @@ def End_gamescreen():
     global winner
     screen.fill((150,150,100))
     text = myfont.render(f"Winner is {winner}", True, (0,0,0))
-    text_rect = text.get_rect(center=(800 // 2, 600 // 2))
+    text_rect = text.get_rect(center=(w // 2, h // 2))
     screen.blit(text, text_rect)
     pygame.display.flip()
 
     global waiting
 
+class portal(pygame.sprite.Sprite):
+    def __init__(self,x,y):
+        self.pos=(x,y)
+        self.rect=pygame.Rect(x,y,portalsize[0],portalsize[1])
+    def draw(self):
+        x,y=self.pos
+        pygame.draw.rect(screen,(0,0,92.5),(x,y,portalsize[0],portalsize[1]))
 
+    
 class health_bar():
     def _init_(self,playername):
         self.owner=playername
         
     def draw(self):
         self.ratio=self.owner.hp/maxhp
-        if(not self.ratio==0):
+        if(not self.ratio<=0):
             
             if self.ratio<0:
                 self.ratio=0
@@ -119,12 +161,12 @@ class Player(pygame.sprite.Sprite):
         pressed = pygame.key.get_pressed()
         if pressed[K_LEFT]:
             self.delangle=True
-            self.angle+=1.1
+            self.angle+=rot
             self.image=rot_center(image1,self.angle)
             #self.pos=self.pos+adjustment
         if pressed[K_RIGHT]:
             self.delangle=True
-            self.angle+=-1.1
+            self.angle+=-rot
             self.image=rot_center(image1,self.angle)
         if pressed[K_UP]:
             self.move=pygame.math.Vector2(0,speed)
@@ -137,8 +179,8 @@ class Player(pygame.sprite.Sprite):
         self.move.x *= 0.2# slow down (decrease progressively)
         self.move.y *= 0.2
         #makes sure we stay within boundries of screen
-        if self.pos.y > 600:
-            self.pos.y = 600
+        if self.pos.y > h:
+            self.pos.y = h
         if self.pos.y < 45:
             self.pos.y = 45
 
@@ -146,13 +188,13 @@ class Player(pygame.sprite.Sprite):
         if self.rect.left < 0:
             self.rect.left = 0
             self.pos.x = self.rect.centerx
-        if self.rect.right > 800:
-            self.rect.right = 800
+        if self.rect.right > w:
+            self.rect.right = w
             self.pos.x = self.rect.centerx
         if self.rect.top<0:
             self.rect.top=0
-        if self.rect.bottom>600:
-            self.rect.bottom=600
+        if self.rect.bottom>h:
+            self.rect.bottom=h
 class Player2(pygame.sprite.Sprite): 
     def __init__(self, x, y):
         super().__init__()
@@ -178,12 +220,12 @@ class Player2(pygame.sprite.Sprite):
         pressed = pygame.key.get_pressed()
         if pressed[K_a]:
             self.delangle=True
-            self.angle+=1
+            self.angle+=rot
             self.image=rot_center(image2,self.angle)
             
         if pressed[K_d]:
             self.delangle=True
-            self.angle+=-1
+            self.angle+=-rot
             self.image=rot_center(image2,self.angle)
         if pressed[K_w]:
             self.move=pygame.math.Vector2(0,speed)
@@ -196,8 +238,8 @@ class Player2(pygame.sprite.Sprite):
         self.move.x *= 0.2# slow down (decrease progressively)
         self.move.y *= 0.2
 
-        if self.pos.y > 600:
-            self.pos.y = 600
+        if self.pos.y > h:
+            self.pos.y = h
         if self.pos.y < 45:
             self.pos.y = 45
 
@@ -205,14 +247,14 @@ class Player2(pygame.sprite.Sprite):
         if self.rect.left < 0:
             self.rect.left = 0
             self.pos.x = self.rect.centerx
-        if self.rect.right > 800:
-            self.rect.right = 800
+        if self.rect.right > w:
+            self.rect.right = w
             self.pos.x = self.rect.centerx
         if self.rect.top<0:
             self.rect.top=0
-        if self.rect.bottom>600:
-            self.rect.bottom=600
-### SPAM REMOVES RELOAD TIME OF BULLET ->resolved
+        if self.rect.bottom>h:
+            self.rect.bottom=h
+
 class Bullet(pygame.sprite.Sprite):
     def __init__(self,player) -> None:
         super().__init__()
@@ -239,16 +281,38 @@ class Bullet(pygame.sprite.Sprite):
         self.move.rotate_ip(-self.angle)
         self.pos= self.pos-self.move*time_passed
         self.rect =self.image.get_rect(midbottom = (round(self.pos.x), round(self.pos.y)))   
-        if(i.pos.y>600 or i.pos.y<0 or i.pos.x<0 or i.pos.x>800):
+        if(i.pos.y>h or i.pos.y<0 or i.pos.x<0 or i.pos.x>w):
             self.kill() 
-class Landmines(pygame.sprite.Sprite):
+class Landmine(pygame.sprite.Sprite):
     def __init__(self,player):
         super().__init__()
+        self.time=time.time()
         self.pos = player.pos
-        #self.image = image_mine
+        self.index=0
+        self.image = image_mine[self.index]
         self.owner=player
         self.isready=False
-        self.rect = pygame.Rect(10, 10, 200, 200)
+        self.boom=False
+        self.rect = self.image.get_rect(center = (round(self.pos.x), round(self.pos.y)))
+        self.counter=0
+        
+    def update(self):
+        if(time.time()-self.time>=5):
+            self.isready=True
+    def Explode(self):
+        self.boom=True
+        explosion_speed=6
+        self.counter+=1
+
+        if self.counter>=explosion_speed and self.index<len(image_mine):
+            self.counter=0
+            self.image=image_mine[self.index]
+            self.rect = self.image.get_rect(center = (round(self.pos.x), round(self.pos.y)))
+            self.index+=1
+        if self.index>=len(image_mine):
+            self.kill()
+
+
 
 class P_explosion(pygame.sprite.Sprite):
     def __init__(self,player):
@@ -285,10 +349,11 @@ bullet_bool1=False
 bullet_bool2=False
 
 collisions=[]
+x,y=(rand.randint(0+portalsize[0],w-portalsize[0]),rand.randint(0+portalsize[1],h-portalsize[1]))
+potol=portal(x,y)
 
-
-player = Player(400, 500)
-player2=Player2(400,0)
+player = Player(w/2, h-100)
+player2=Player2(w/2,0)
 gamers.add(player)
 gamers.add(player2)
 
@@ -299,67 +364,96 @@ HP1=health_bar()
 HP1._init_(player)
 HP2=health_bar()
 HP2._init_(player2)
-
 gamerl=gamers.sprites()
-while True:
-    
+sl=[gamers,HP1,HP2,Explosion,bullets]
+sus=[]
+while True: 
     if waiting:
         start_screen()
     time_passed = clock.tick(120)/10
-    if player.reloading and k==0:
-        k=1
-        t=time.time
     
     for event in pygame.event.get():
         if event.type == QUIT: 
             pygame.quit()
             exit()
         if event.type == KEYDOWN:
-                
+            if(event.key==K_r) and not player2.reloading:
+                player2.reloading=True
+                player2.timer=time.time()
+                b2=player2.bcount
+            if(event.key==K_m) and not player.reloading:
+                player.reloading=True
+                player.timer=time.time()    
+                b1=player.bcount
             if(event.key==K_SPACE and len(gamerl)>1):
                 
-                if not player.bcount==0:  
+                if not player.reloading:  
                     gunshot.play()
                     player.bcount-=1
                     bullet_bool1=True
-                elif not player.reloading and player.bcount==0:
-                    player.reloading=True
-                    player.timer=time.time()
-                elif time.time()-player.timer>=5:
-                    player.bcount=5
-                    player.reloading=False
+            if(event.key==K_1):
+                landm=Landmine(player2)
+                Landmines.add(landm)
+            if(event.key==K_SLASH):
+                landm=Landmine(player)
+                Landmines.add(landm)
             if(event.key==K_q and len(gamerl)>1):
-                if not player2.bcount==0:
+                if not player2.reloading:
                     gunshot.play()
                     player2.bcount-=1
                     bullet_bool2=True
-                
-                elif not player2.reloading:
-                    player2.reloading=True
-                    player2.timer=time.time()
-                elif time.time()-player2.timer>=5:
-                    player2.bcount=5
-                    player2.reloading=False
-    
-                
-    gamers.update()
+    sus+=bullets.sprites()+gamerl#makes list of owner sprites objects
+    #reloading of player//may remove reload feature
+    if not player.reloading and player.bcount==0:
+         player.reloading=True
+         player.timer=time.time()
+         b1=0
+    elif player.reloading and time.time()-player.timer>=5-b1:
+        player.bcount=5
+        player.reloading=False
+    if not player2.reloading and player2.bcount==0:
+        player2.reloading=True
+        player2.timer=time.time()
+        b2=0
+    elif player2.reloading and time.time()-player2.timer>=5-b2:
+        player2.bcount=5
+        player2.reloading=False
+    #gamers.update()
     screen.fill((0,0,90))
-   
-
-    #makes turning smooth
-    player2.rect = player2.image.get_rect(center=((player2.pos.x), (player2.pos.y)))
-    player.rect = player.image.get_rect(center=((player.pos.x), (player.pos.y)))
-    HP1.draw()
-    HP2.draw()
-    gamers.draw(screen)
-    Explosion.draw(screen)
-    Explosion.update()
-    bullets.update()
-    bullets.draw(screen)
-
-
-            #bullet_bool1=False
-
+    potol.draw()
+    for sprite in sl:
+        try:
+            sprite.update()
+        except:
+            pass
+        try:
+            if(sprite== gamers):
+                player2.rect = player2.image.get_rect(center=((player2.pos.x), (player2.pos.y)))
+                player.rect = player.image.get_rect(center=((player.pos.x), (player.pos.y)))
+            sprite.draw(screen)
+        except:
+            sprite.draw()
+    ELandmines.draw(screen)
+    Landmines.update()
+    for i in Landmines.sprites():
+        collisions2=pygame.sprite.spritecollide(i,[gamers for gamers in gamerl],False)
+        if(i.isready and len(collisions2) and not i.boom):
+            ELandmines.add(i)
+            for k in collisions2:
+                if(k==player):
+                    player.hp-=100
+                elif(k==player2):
+                    player2.hp-=100
+            collisions2=[]
+    for i in ELandmines.sprites():
+        i.Explode()
+            
+    tp=pygame.sprite.spritecollide(potol,sus,False)
+    if tp:
+        tp=list(set(tp))
+        for k in tp:
+            x,y=(rand.randint(0,w),rand.randint(0,h))
+            k.pos=(pygame.math.Vector2(x,y))
     #bullets
     if bullet_bool1:
         bull1=Bullet(player)
@@ -374,13 +468,13 @@ while True:
     
 
     for i in bullets.sprites():
-        if(i.owner!=player):
+        if(i.owner!=player) and not gg:
 
              collisions=pygame.sprite.spritecollide(i,[gamerl[0]],False)
              if len(collisions):
                 i.kill()
 
-        if(i.owner!=player2):
+        if(i.owner!=player2) and not gg:
             collisions=pygame.sprite.spritecollide(i,[gamerl[1]],False )
             if len(collisions):
                 i.kill()
@@ -392,16 +486,13 @@ while True:
                 player.hp-=dmg
         
     
-    if gg and not Explosion and time.time()-t>=5:
-         if i:
-             time.sleep(1)
-             End_gamescreen()
-         check+=1
+   
     if player2.hp<=0 and not gg:
         winner="player1"
         expl=P_explosion(player2)
         Explosion.add(expl)
         gamers.remove(player2)
+        gamerl.remove(player2)
         t=time.time()
         boom.play()
         gg=True
@@ -410,8 +501,15 @@ while True:
         expl=P_explosion(player)
         Explosion.add(expl)
         gamers.remove(player)
+        gamerl.remove(player2)
         t=time.time()
         boom.play()
         gg=True
-
+    if gg and not Explosion and time.time()-t>=5:
+         if i:
+             time.sleep(1)
+             End_gamescreen()
+         check+=1
+#player 1 has advantage when draw!!!! 
+#remove landmines after kill.
     pygame.display.flip()
